@@ -72,8 +72,8 @@ def parse_cofactors(cofactors_fp, strip_localizations):
 def iter_reactions(reactions_fp, cofactors, strip_localizations):
     """Iterates over a reaction file, returning a tuples for each reaction
 
-    Each returned tuple contains three items, a set of reactants on the left,
-    a set of reactants on the right, and a boolean "reversible"
+    Each returned tuple contains three items, a set of metabolites on the left,
+    a set of metabolites on the right, and a boolean "reversible"
 
     cofactors will be removed from all reactions. Reactions will NOT be
     returned if either the right side or the left side is empty after removal
