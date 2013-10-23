@@ -72,7 +72,7 @@ def parse_cofactors(cofactors_fp, strip_localizations):
 def iter_reactions(reactions_fp, cofactors, strip_localizations):
     """Iterates over a reaction file, returning a tuples for each reaction
 
-    Each returned dict contains three items, a set of reactants on the left,
+    Each returned tuple contains three items, a set of reactants on the left,
     a set of reactants on the right, and a boolean "reversible"
 
     cofactors will be removed from all reactions. Reactions will NOT be
@@ -90,12 +90,11 @@ def iter_reactions(reactions_fp, cofactors, strip_localizations):
         right_reactants = right.split(' + ')
 
         # filter out cofactors from the reaction
-        for cof in cofactors:
-            filter_fn = lambda x: x != cof
-            left_reactants = filter(filter_fn, left_reactants)
-            right_reactants = filter(filter_fn, right_reactants)
+        filter_fn = lambda x: x not in cofactors
+        left_reactants = filter(filter_fn, left_reactants)
+        right_reactants = filter(filter_fn, right_reactants)
 
-        # if there are reactants left on both sides of the equation, yield
+        # if there are reactants remaining on both sides of the equation, yield
         # the reaction
         if left_reactants and right_reactants:
             yield (set(left_reactants), set(right_reactants), reversible)
@@ -106,15 +105,33 @@ def iter_reactions(reactions_fp, cofactors, strip_localizations):
 
 def generate_network(reactions_fp, cofactors_fp, output_dir,
     strip_localizations):
-    """Generates edges.tsv and nodes.tsv files from an input reaction list.
+    """Generates edge and node attribute dicts from an input list of reactions.
+
     Given reactions in the format:
 
     etoh[c] + nad[c] <=> acald[c] + h[c] + nadh[c]
 
-    Generates two output files that detail the edges and nodes in the
-    connectome network.
-    """
+    Returns 5 dicts:
+        edge_colors             Keys are frozensets of pairs of metabolites,
+                                and values represent colors that can be
+                                looked up in the EDGE_COLOR_DICT.
+        
+        edge_weights            Keys are as above, and values are represent
+                                weights that can be looked up in the
+                                EDGE_WEIGHT_DICT
 
+        edge_reversibilities    Keys are as above, and values are booleans,
+                                True if the pair are ever observed on opposite
+                                sides of a reversible reaction, False if not.
+
+        node_colors             Keys are metabolite names, values represent
+                                colors that can be looked up in the
+                                NODE_COLOR_DICT
+
+        node_sizes              Keys are metabolites, values record how many
+                                different reactions the metabolite is observed
+                                in.
+    """
     edge_colors = defaultdict(int)
     edge_weights = defaultdict(int)
     edge_reversibilities = defaultdict(bool)
@@ -123,23 +140,18 @@ def generate_network(reactions_fp, cofactors_fp, output_dir,
 
     cofactors = parse_cofactors(cofactors_fp, strip_localizations)
 
-    reaction_counter = 0
     for left, right, reversible in iter_reactions(reactions_fp, cofactors,
             strip_localizations):
-
-        reaction_counter += 1
 
         # update node color and size trackers
         for metabolite in left:
             node_colors[metabolite] |= REACTANT
+            node_sizes[metabolite] += 1
         for metabolite in right:
             node_colors[metabolite] |= PRODUCT
-
-        # i can't remember why i need to do this instead of just taking care
-        # of this in the two for-loops above...
-        for metabolite in left.union(right):
             node_sizes[metabolite] += 1
 
+        # convert to lists to do index-based metabolite pairing
         left, right = list(left), list(right)
 
         # update edge color and size trackers
@@ -163,7 +175,7 @@ def generate_network(reactions_fp, cofactors_fp, output_dir,
                 key = frozenset([l, r])
                 edge_colors[key] |= DIFFERENT_SIDE
                 edge_weights[key] |= DIFFERENT_SIDE
-                edge_reversibilities[key] = reversible
+                edge_reversibilities[key] |= reversible
 
     return (edge_colors, edge_weights, edge_reversibilities, node_colors, 
         node_sizes)
@@ -171,17 +183,9 @@ def generate_network(reactions_fp, cofactors_fp, output_dir,
 def write_node_table(node_colors, node_sizes, output_fp):
     """Writes the node table
 
-    The node table has three columns: node_name, node_size, and node_color
-
-    node_name:
-        Each node represents a metabolite, and is named after that metabolite.
-    node_size:
-        The size of each node is the number of reactions it appears in.
-        If a metabolite appears in a reversible reaction, it is counted twice.
-    node_color:
-        Nodes can have three different colors depending on whether they are
-        seen as only a reactant, as only a product, or as both. The color
-        is looked up in NODE_COLOR_DICT
+    The node table has three columns: node_name, node_size, and node_color.
+    The node_name is the name of the metabolite, and the size and color are
+    self-explanatory fields.
     """
     node_table = open(output_fp, 'w')
     node_cols = ['node_name', 'node_size', 'node_color']
@@ -236,6 +240,6 @@ if __name__ == '__main__':
         output_dir, strip_localizations)
 
     write_node_table(node_colors, node_sizes,
-        join(output_dir, 'node_table.txt'))
+        join(output_dir, 'node_table.tsv'))
     write_edge_table(edge_colors, edge_weights, edge_reversibilities,
-        join(output_dir, 'edge_table.txt'))
+        join(output_dir, 'edge_table.tsv'))
