@@ -199,7 +199,12 @@ def write_node_table(node_colors, node_sizes, output_fp):
 
 def write_edge_table(edge_colors, edge_weights, edge_reversibilities,
         output_fp):
-    """
+    """Writes the edge table
+
+    The edge table has four columns: reactant, product, distance, and color.
+    Probably the first two columns should be "first metabolite" and "second
+    metabolite," since I presume there will not be more than one edge between
+    each unique pair of metabolites...?
     """
     # write edge table
     edge_table = open(output_fp, 'w')
